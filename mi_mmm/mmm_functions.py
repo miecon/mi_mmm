@@ -1,6 +1,8 @@
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
+import numpyro
+import numpyro.distributions as dist
 
 def adstocked_advertising_jnp(x, adstock_rate, L):
     """
@@ -69,3 +71,61 @@ def response_curve_hyper(x, beta, alpha=1.):
     numpy.ndarray or float: A 1-dimensional array or a float value representing the response curve values for the given input data and parameters.
     """
     return alpha-beta/(x+(beta/alpha))
+
+def prophet_trend(t, n_changepoints=25, changepoints_prior_scale=0.05, growth_prior_scale=1, changepoint_range=0.8):
+    """
+    Estimate the piecewise linear growth trend of a time series using the Prophet model.
+    
+    Parameters
+    ----------
+    t : array-like
+        A 1D array of time points for which to estimate the trend.
+    n_changepoints : int, optional, default=25
+        The number of potential changepoints in the piecewise linear growth trend.
+    changepoints_prior_scale : float, optional, default=0.05
+        The prior scale for the Laplace distribution of the changepoints.
+    growth_prior_scale : float, optional, default=1
+        The prior scale for the normal distribution of the initial growth.
+    changepoint_range : float, optional, default=0.8
+        The proportion of the time series in which the potential changepoints can occur.
+    
+    Returns
+    -------
+    g : array-like
+        The estimated growth trend at each time point in `t`.
+        
+    Notes
+    -----
+    This function uses the numpyro library to estimate the growth trend of a time series based on the
+    Prophet model. The trend is modeled as a piecewise linear function with a fixed number of changepoints.
+    The changepoints, growth rates, and offsets are estimated using Bayesian sampling.
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> t = np.linspace(0, 100, 101)
+    >>> trend = prophet_trend(t)
+    """
+    s = jnp.linspace(0, changepoint_range * jnp.max(t), n_changepoints + 1)[1:]
+
+    A = (t[:, None] > s) * 1
+
+    # initial growth
+
+    k = numpyro.sample('k',dist.Normal(0 , growth_prior_scale))
+
+    if changepoints_prior_scale is None:
+        changepoints_prior_scale = numpyro.sample('tau', dist.Exponential(1.5))
+        
+    # rate of change
+
+    with numpyro.plate("delta", n_changepoints):
+        delta = numpyro.sample('deltas', dist.Laplace(0, changepoints_prior_scale))
+        
+    # offset
+    m = numpyro.sample('m', dist.Normal(0, 1))
+
+    gamma = -s * delta
+
+    g = (k + A @ delta) * t + (m + A @ gamma)
+    return g
