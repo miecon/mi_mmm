@@ -50,11 +50,11 @@ def media_transform_vectorised(x, decay_vec, beta_vec, slope_vec, L):
     beta_vec (numpy.ndarray): A 1-dimensional array of float values representing the saturation parameters for multiple response curves.
     slope_vec (numpy.ndarray): A 1-dimensional array of float values representing the slopes for multiple response curves.
     L (int): An integer representing the maximum lag in the adstock function, which determines the range of the adstock calculation.
-
+	
     Returns:
     numpy.ndarray: A 2-dimensional array representing the transformed input data for each combination of decay, beta, and slope parameters.
     """
-    return vmap(media_transform, (1, 0, 0, 0, None), 1)
+    return vmap(media_transform, (1, 0, 0, 0, None), 1)(x, decay_vec, beta_vec, slope_vec, L)
 
 def response_curve_hyper(x, beta, alpha=1.):
     """
